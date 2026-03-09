@@ -1,0 +1,24 @@
+{{- /*
+Allow cert-manager ACME HTTP-01 solver pods to receive traffic
+from the ingress controller on port 8089 (the solver's listen port).
+Without this, the default-deny policy blocks the ACME challenge
+and TLS certificates can never be issued.
+*/ -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-acme-solver
+  labels:
+    app.kubernetes.io/part-of: medical-pipeline
+spec:
+  podSelector:
+    matchLabels:
+      acme.cert-manager.io/http01-solver: "true"
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: 8089
+          protocol: TCP
+  egress: []

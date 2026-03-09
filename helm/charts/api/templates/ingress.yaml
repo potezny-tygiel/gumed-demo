@@ -12,15 +12,11 @@ metadata:
     nginx.ingress.kubernetes.io/limit-rps: "20"
     nginx.ingress.kubernetes.io/limit-connections: "10"
     cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer | default "letsencrypt-prod" | quote }}
-    nginx.ingress.kubernetes.io/server-snippets: |
-      add_header X-Frame-Options "DENY" always;
-      add_header X-Content-Type-Options "nosniff" always;
-      add_header X-XSS-Protection "1; mode=block" always;
-      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
+  ingressClassName: nginx
   {{- if .Values.ingress.tls }}
   tls:
     - hosts:

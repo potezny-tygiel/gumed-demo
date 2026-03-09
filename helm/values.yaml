@@ -5,6 +5,13 @@ global:
   # -- Image pull secrets for private registries
   imagePullSecrets: []
 
+# -- cert-manager ClusterIssuer for Let's Encrypt TLS
+certManager:
+  enabled: true
+  email: ""
+  issuerName: letsencrypt-prod
+  acmeServer: https://acme-v02.api.letsencrypt.org/directory
+
 # -- PostgreSQL subchart values
 postgresql:
   auth:
