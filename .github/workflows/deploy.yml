@@ -65,6 +65,36 @@ jobs:
             kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
             # ----------------------------------------------------------
+            # 2b. Ensure Traefik is removed (K3s default conflicts with nginx)
+            # ----------------------------------------------------------
+            echo ">>> Removing Traefik if present ..."
+            kubectl delete helmchart traefik traefik-crd -n kube-system 2>/dev/null || true
+            kubectl delete deployment traefik -n kube-system 2>/dev/null || true
+            kubectl delete svc traefik -n kube-system 2>/dev/null || true
+            # Prevent K3s from re-creating Traefik on restart
+            sudo mkdir -p /var/lib/rancher/k3s/server/manifests
+            echo '---' | sudo tee /var/lib/rancher/k3s/server/manifests/traefik.yaml.skip > /dev/null || true
+
+            # ----------------------------------------------------------
+            # 2c. Ensure NGINX Ingress Controller is running
+            # ----------------------------------------------------------
+            echo ">>> Checking NGINX Ingress Controller ..."
+            helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx --force-update
+            helm repo update
+            helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+              --namespace ingress-nginx --create-namespace \
+              --set controller.hostPort.enabled=false \
+              --set controller.service.type=LoadBalancer \
+              --wait --timeout=120s
+
+            # Wait for the admission webhook to be ready
+            echo ">>> Waiting for ingress-nginx admission webhook ..."
+            kubectl wait --namespace ingress-nginx \
+              --for=condition=Ready pod \
+              --selector=app.kubernetes.io/component=controller \
+              --timeout=120s
+
+            # ----------------------------------------------------------
             # 3. Ensure GHCR pull secret (idempotent)
             # ----------------------------------------------------------
             kubectl create secret docker-registry ghcr-pull-secret \

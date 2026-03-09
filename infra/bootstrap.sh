@@ -145,21 +145,32 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 5. Install NGINX Ingress Controller
+# 5. Remove Traefik (K3s default) — frees ports 80/443 for NGINX
 # ---------------------------------------------------------------------------
-if helm list -n ingress-nginx 2>/dev/null | grep -q ingress-nginx; then
-  log "NGINX Ingress Controller is already installed"
-else
-  log "Installing NGINX Ingress Controller..."
-  helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx --force-update
-  helm repo update
-  helm install ingress-nginx ingress-nginx/ingress-nginx \
-    --namespace ingress-nginx --create-namespace \
-    --set controller.hostPort.enabled=true \
-    --set controller.service.type=ClusterIP \
-    --wait --timeout=120s
-  log "NGINX Ingress Controller installed"
-fi
+log "Ensuring Traefik is removed ..."
+kubectl delete helmchart traefik traefik-crd -n kube-system 2>/dev/null || true
+kubectl delete deployment traefik -n kube-system 2>/dev/null || true
+kubectl delete svc traefik -n kube-system 2>/dev/null || true
+# Prevent K3s from re-creating Traefik on restart
+mkdir -p /var/lib/rancher/k3s/server/manifests
+echo '---' > /var/lib/rancher/k3s/server/manifests/traefik.yaml.skip 2>/dev/null || true
+log "Traefik removed"
+
+# Give the node a moment to release ports
+sleep 5
+
+# ---------------------------------------------------------------------------
+# 5b. Install NGINX Ingress Controller
+# ---------------------------------------------------------------------------
+log "Installing / upgrading NGINX Ingress Controller..."
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx --force-update
+helm repo update
+helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx --create-namespace \
+  --set controller.hostPort.enabled=false \
+  --set controller.service.type=LoadBalancer \
+  --wait --timeout=120s
+log "NGINX Ingress Controller ready"
 
 # ---------------------------------------------------------------------------
 # 6. Install cert-manager (automatic TLS via Let's Encrypt)
