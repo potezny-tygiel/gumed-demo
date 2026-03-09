@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 import types
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 # ── Mock the kaggle package before ingest.py is ever imported ────────────
 _kaggle = types.ModuleType("kaggle")

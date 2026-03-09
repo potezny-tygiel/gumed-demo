@@ -11,5 +11,8 @@ dependencies:
 - name: grafana
   repository: file://charts/grafana
   version: 0.1.0
-digest: sha256:0900781602ddbc68a1d3a9e950ff12a228f202e5efea5db56617022e61fef6fe
-generated: "2026-03-09T08:09:09.711491247Z"
+- name: frontend
+  repository: file://charts/frontend
+  version: 0.1.0
+digest: sha256:2bbb8aaf06c9e6859e3c0201c7ce71b2b3c08f5888c902958753c6834ba5e0ef
+generated: "2026-03-09T15:23:52.479356262Z"
