@@ -23,14 +23,20 @@ def _get_db(request: Request) -> Database:
 def list_tables(request: Request) -> TableListResponse:
     """List all available tables in the database."""
     log.info("Listing tables")
-    return TableListResponse(tables=request.app.state.tables)
+    db = _get_db(request)
+    tables = db.list_tables()
+    # Refresh cached list so other endpoints see newly-ingested tables
+    request.app.state.tables = tables
+    return TableListResponse(tables=tables)
 
 
 @router.get("/tables/{table_name}", tags=["data"], response_model=TableInfoResponse)
 def get_table_info(request: Request, table_name: str) -> TableInfoResponse:
     """Get metadata for a specific table (columns, row count)."""
     log.info("Getting info for table '%s'", table_name)
-    if table_name not in request.app.state.tables:
+    db = _get_db(request)
+    # Live check — tables may have been created after startup (e.g. ingestion)
+    if table_name not in db.list_tables():
         log.warning("Table '%s' not found", table_name)
         raise HTTPException(status_code=404, detail=f"Table '{table_name}' not found")
 
@@ -54,11 +60,11 @@ def get_table_rows(
 ) -> TableRowsResponse:
     """Fetch rows from a table with pagination."""
     log.info("Fetching rows from '%s' (limit=%d, offset=%d)", table_name, limit, offset)
-    if table_name not in request.app.state.tables:
+    db = _get_db(request)
+    # Live check — tables may have been created after startup (e.g. ingestion)
+    if table_name not in db.list_tables():
         log.warning("Table '%s' not found", table_name)
         raise HTTPException(status_code=404, detail=f"Table '{table_name}' not found")
-
-    db = _get_db(request)
     rows = db.query_table(table_name, limit=limit, offset=offset)
     total_rows = db.count_rows(table_name)
 
