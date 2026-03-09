@@ -53,7 +53,7 @@ class TestListTables:
         assert data == {"tables": mock_tables}
 
     def test_returns_empty_list_when_no_tables(self, app: FastAPI) -> None:
-        app.state.tables = []
+        app.state.db.list_tables.return_value = []
         with TestClient(app) as c:
             data = c.get("/api/v1/tables").json()
         assert data == {"tables": []}
