@@ -26,6 +26,15 @@
 
 set -euo pipefail
 
+# K3s kubeconfig — use if present and KUBECONFIG not already set
+if [[ -z "${KUBECONFIG:-}" ]]; then
+  if [[ -r "${HOME}/.kube/config" ]]; then
+    export KUBECONFIG="${HOME}/.kube/config"
+  elif [[ -r /etc/rancher/k3s/k3s.yaml ]]; then
+    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+  fi
+fi
+
 NAMESPACE="${1:-medical-pipeline}"
 RELEASE_NAME="${2:-medical-pipeline}"
 FAILED=0
