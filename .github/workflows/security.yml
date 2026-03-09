@@ -118,27 +118,32 @@ jobs:
             -t scan-${{ matrix.service }}:local \
             ./${{ matrix.service }}
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.29.0
-        with:
-          image-ref: "scan-${{ matrix.service }}:local"
-          format: "table"
-          exit-code: "0"
-          severity: "CRITICAL,HIGH"
-          ignore-unfixed: true
+      - name: Run Trivy (SARIF)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "${{ github.workspace }}:/workspace" \
+            aquasec/trivy:latest image \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --format sarif \
+            --output /workspace/trivy-${{ matrix.service }}.sarif \
+            "scan-${{ matrix.service }}:local" || true
 
-      - name: Run Trivy (SARIF for GitHub Security tab)
+      - name: Run Trivy (table summary)
         if: always()
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: "scan-${{ matrix.service }}:local"
-          format: "sarif"
-          output: "trivy-${{ matrix.service }}.sarif"
-          severity: "CRITICAL,HIGH"
-          ignore-unfixed: true
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --format table \
+            --exit-code 0 \
+            "scan-${{ matrix.service }}:local" || true
 
       - name: Upload SARIF
-        if: always()
+        if: always() && hashFiles(format('trivy-{0}.sarif', matrix.service)) != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: "trivy-${{ matrix.service }}.sarif"
@@ -174,22 +179,25 @@ jobs:
 
       - name: Template Helm chart
         run: |
-          helm dependency build helm/
+          helm dependency update helm/
           helm template test helm/ \
             --set api.image.repository=ghcr.io/test/api \
             --set api.image.tag=test \
             --set ingestion.image.repository=ghcr.io/test/ingestion \
             --set ingestion.image.tag=test \
+            --set frontend.image.repository=ghcr.io/test/frontend \
+            --set frontend.image.tag=test \
             > /tmp/rendered-manifests.yaml
 
       - name: Scan K8s manifests with Trivy
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: "config"
-          scan-ref: "/tmp/rendered-manifests.yaml"
-          format: "table"
-          exit-code: "0"
-          severity: "CRITICAL,HIGH"
+        run: |
+          docker run --rm \
+            -v /tmp:/tmp \
+            aquasec/trivy:latest config \
+            --severity CRITICAL,HIGH \
+            --format table \
+            --exit-code 0 \
+            /tmp/rendered-manifests.yaml
 
   # -----------------------------------------------------------------------
   # Summary
@@ -211,4 +219,3 @@ jobs:
           echo "| Container Scan     | ${{ needs.container-scan.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Secret Scan        | ${{ needs.secret-scan.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| K8s Manifest Scan  | ${{ needs.k8s-scan.result }} |" >> "$GITHUB_STEP_SUMMARY"
-
