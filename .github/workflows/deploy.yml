@@ -130,6 +130,12 @@ jobs:
             # ----------------------------------------------------------
             # 5. Helm upgrade/install (idempotent)
             # ----------------------------------------------------------
+            # Clean up stuck/failed release before attempting install
+            RELEASE_STATUS=$(helm status "${RELEASE_NAME}" -n "${NAMESPACE}" -o json 2>/dev/null | grep -o '"status":"[^"]*"' | cut -d'"' -f4 || true)
+            if [[ "${RELEASE_STATUS}" == "failed" || "${RELEASE_STATUS}" == "pending-install" || "${RELEASE_STATUS}" == "pending-upgrade" ]]; then
+              echo ">>> Previous release in '${RELEASE_STATUS}' state — uninstalling before fresh install ..."
+              helm uninstall "${RELEASE_NAME}" -n "${NAMESPACE}" --wait 2>/dev/null || true
+            fi
             echo ""
             echo ">>> Applying Helm release ..."
             if helm upgrade --install "${RELEASE_NAME}" ./helm \
