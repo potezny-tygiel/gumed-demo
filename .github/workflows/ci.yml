@@ -93,7 +93,7 @@ jobs:
           helm lint helm/charts/grafana
 
       - name: Build umbrella dependencies
-        run: helm dependency build helm/
+        run: helm dependency update helm/
 
       - name: Lint umbrella chart
         run: helm lint helm/
