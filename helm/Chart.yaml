@@ -1,0 +1,23 @@
+apiVersion: v2
+name: medical-pipeline
+description: Medical Data Pipeline - umbrella Helm chart
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: postgresql
+    version: "0.1.0"
+    repository: "file://charts/postgresql"
+  - name: api
+    version: "0.1.0"
+    repository: "file://charts/api"
+  - name: ingestion
+    version: "0.1.0"
+    repository: "file://charts/ingestion"
+  - name: grafana
+    version: "0.1.0"
+    repository: "file://charts/grafana"
+  - name: frontend
+    version: "0.1.0"
+    repository: "file://charts/frontend"

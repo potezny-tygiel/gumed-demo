@@ -1,0 +1,15 @@
+dependencies:
+- name: postgresql
+  repository: file://charts/postgresql
+  version: 0.1.0
+- name: api
+  repository: file://charts/api
+  version: 0.1.0
+- name: ingestion
+  repository: file://charts/ingestion
+  version: 0.1.0
+- name: grafana
+  repository: file://charts/grafana
+  version: 0.1.0
+digest: sha256:0900781602ddbc68a1d3a9e950ff12a228f202e5efea5db56617022e61fef6fe
+generated: "2026-03-09T08:09:09.711491247Z"

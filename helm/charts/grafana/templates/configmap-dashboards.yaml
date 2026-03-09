@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "grafana.fullname" . }}-dashboards
+  labels:
+    {{- include "grafana.labels" . | nindent 4 }}
+data:
+  healthcare_overview.json: |-
+    {{- .Files.Get "dashboards/healthcare_overview.json" | nindent 4 }}

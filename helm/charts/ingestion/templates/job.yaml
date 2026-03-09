@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "ingestion.fullname" . }}-{{ .Release.Revision }}
+  labels:
+    {{- include "ingestion.labels" . | nindent 4 }}
+  annotations:
+    # Force a new job on every helm upgrade
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  ttlSecondsAfterFinished: {{ .Values.ttlSecondsAfterFinished }}
+  backoffLimit: {{ .Values.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "ingestion.labels" . | nindent 8 }}
+    spec:
+      {{- with ((.Values.global).imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: ingestion
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: POSTGRES_HOST
+              value: {{ include "ingestion.postgresHost" . }}
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: KAGGLE_DATASET
+              value: {{ .Values.kaggle.dataset | quote }}
+          envFrom:
+            - secretRef:
+                name: {{ include "ingestion.postgresSecretName" . }}
+            - secretRef:
+                name: {{ include "ingestion.fullname" . }}-kaggle
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
