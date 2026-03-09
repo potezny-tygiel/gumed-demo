@@ -18,6 +18,12 @@ ingress:
 # In-cluster service name for the API reverse proxy
 apiUpstream: ""
 
+# HTTP Basic Auth (nginx ingress)
+basicAuth:
+  enabled: false
+  # htpasswd-format string, e.g. "admin:$2y$05$..."
+  htpasswd: ""
+
 resources:
   requests:
     cpu: 50m
