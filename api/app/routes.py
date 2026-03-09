@@ -7,7 +7,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.database import Database
-from app.models import TableInfoResponse, TableListResponse, TableRowsResponse
+from app.models import ColumnInfo, TableInfoResponse, TableListResponse, TableRowsResponse
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ def get_table_info(request: Request, table_name: str) -> TableInfoResponse:
         raise HTTPException(status_code=404, detail=f"Table '{table_name}' not found")
 
     db = _get_db(request)
-    columns = db.get_table_columns(table_name)
+    columns = [ColumnInfo(**col) for col in db.get_table_columns(table_name)]
     total_rows = db.count_rows(table_name)
 
     return TableInfoResponse(

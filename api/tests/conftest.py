@@ -70,7 +70,7 @@ def app(mock_tables: list[str], mock_db: MagicMock) -> FastAPI:
 
 
 @pytest.fixture()
-def client(app: FastAPI) -> TestClient:
+def client(app: FastAPI) -> Generator[TestClient, None, None]:
     """TestClient that uses the test app with no-op lifespan."""
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c

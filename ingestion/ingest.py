@@ -98,7 +98,7 @@ class DataIngester:
 
 def main() -> None:
     """Entrypoint: download a Kaggle dataset and ingest into PostgreSQL."""
-    settings = IngestionSettings()
+    settings = IngestionSettings()  # type: ignore[call-arg]
 
     log.info("Starting ingestion pipeline")
     log.info("Dataset: %s", settings.kaggle_dataset)

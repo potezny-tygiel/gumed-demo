@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialise the database connection and discover tables on startup."""
-    settings = Settings()
+    settings = Settings()  # type: ignore[call-arg]
     db = Database(url=settings.database_url)
     app.state.db = db
     app.state.tables = db.list_tables()
