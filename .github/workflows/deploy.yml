@@ -29,6 +29,13 @@ jobs:
           script: |
             set -euo pipefail
 
+            # K3s kubeconfig — try user copy first, fall back to system
+            if [[ -r "${HOME}/.kube/config" ]]; then
+              export KUBECONFIG="${HOME}/.kube/config"
+            else
+              export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+            fi
+
             RELEASE_NAME="medical-pipeline"
             NAMESPACE="medical-pipeline"
             REPO_DIR="/opt/medical-pipeline"
