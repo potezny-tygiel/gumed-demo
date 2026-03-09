@@ -1,0 +1,23 @@
+adminUser: admin
+adminPassword: admin
+
+service:
+  type: ClusterIP
+  port: 3000
+
+ingress:
+  enabled: false
+  host: grafana.hevelius.space
+  annotations: {}
+
+storage:
+  size: 1Gi
+  storageClass: local-path
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

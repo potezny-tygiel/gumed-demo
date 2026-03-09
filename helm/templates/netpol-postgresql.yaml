@@ -1,0 +1,38 @@
+{{- /*
+PostgreSQL: accept connections only from API, Grafana, and Ingestion pods.
+Egress restricted to DNS only.
+*/ -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgresql
+  labels:
+    app.kubernetes.io/part-of: medical-pipeline
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: grafana
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingestion
+      ports:
+        - port: 5432
+          protocol: TCP
+  egress:
+    # → DNS only
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

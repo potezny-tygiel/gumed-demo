@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Medical Data Explorer</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <header>
+        <div class="header-row">
+            <div>
+                <h1>🏥 Medical Data Explorer</h1>
+                <p class="subtitle">Browse and explore the healthcare dataset</p>
+            </div>
+            <a href="https://grafana.hevelius.space" target="_blank" rel="noopener" class="btn-grafana">
+                📊 Grafana Dashboards
+            </a>
+        </div>
+    </header>
+
+    <main>
+        <!-- Controls bar -->
+        <section class="controls">
+            <div class="control-group">
+                <label for="table-select">Table</label>
+                <select id="table-select" disabled>
+                    <option value="">Loading tables…</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="page-size">Rows per page</label>
+                <select id="page-size">
+                    <option value="10">10</option>
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- Table metadata -->
+        <section id="table-info" class="table-info hidden">
+            <span id="info-total-rows"></span>
+            <span id="info-columns"></span>
+        </section>
+
+        <!-- Error banner -->
+        <div id="error-banner" class="error-banner hidden"></div>
+
+        <!-- Data table -->
+        <section id="table-container" class="table-container">
+            <p class="placeholder">Select a table to view data</p>
+        </section>
+
+        <!-- Pagination -->
+        <section id="pagination" class="pagination hidden">
+            <button id="btn-prev" disabled>← Previous</button>
+            <span id="page-indicator"></span>
+            <button id="btn-next" disabled>Next →</button>
+        </section>
+    </main>
+
+    <footer>
+        <p>
+            Powered by
+            <a href="https://api.hevelius.space/docs" target="_blank">FastAPI</a> ·
+            <a href="https://grafana.hevelius.space" target="_blank">Grafana</a>
+        </p>
+    </footer>
+
+    <script src="lab-scene.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

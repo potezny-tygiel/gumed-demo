@@ -1,0 +1,23 @@
+image:
+  repository: ""
+  tag: latest
+  pullPolicy: IfNotPresent
+
+kaggle:
+  username: ""
+  key: ""
+  dataset: prasad22/healthcare-dataset
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# backoffLimit for the Job
+backoffLimit: 3
+
+# TTL for finished jobs (seconds). Default: 1 hour
+ttlSecondsAfterFinished: 3600

@@ -1,0 +1,70 @@
+# -- Global values shared across all subcharts
+global:
+  # -- Container image registry (e.g. ghcr.io/your-org)
+  imageRegistry: ""
+  # -- Image pull secrets for private registries
+  imagePullSecrets: []
+
+# -- PostgreSQL subchart values
+postgresql:
+  auth:
+    username: pipeline
+    password: changeme
+    database: medical_data
+  storage:
+    size: 5Gi
+    storageClass: local-path
+
+# -- API subchart values
+api:
+  image:
+    repository: ""
+    tag: latest
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 8000
+  ingress:
+    enabled: true
+    host: api.hevelius.space
+    tls: true
+
+# -- Ingestion subchart values (Kubernetes Job)
+ingestion:
+  image:
+    repository: ""
+    tag: latest
+  kaggle:
+    # -- Set via secrets; these are placeholders
+    username: ""
+    key: ""
+    dataset: prasad22/healthcare-dataset
+
+# -- Grafana subchart values
+grafana:
+  adminUser: admin
+  adminPassword: admin
+  service:
+    type: ClusterIP
+    port: 3000
+  ingress:
+    enabled: true
+    host: grafana.hevelius.space
+    tls: true
+  storage:
+    size: 1Gi
+    storageClass: local-path
+
+# -- Frontend subchart values
+frontend:
+  image:
+    repository: ""
+    tag: latest
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 80
+  ingress:
+    enabled: true
+    host: hevelius.space
+    tls: true

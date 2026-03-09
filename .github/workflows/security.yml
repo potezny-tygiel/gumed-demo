@@ -1,0 +1,221 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly scan for new CVEs (Monday 06:00 UTC)
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  # -----------------------------------------------------------------------
+  # 1. Python SAST – Bandit (static analysis for common security issues)
+  # -----------------------------------------------------------------------
+  sast:
+    name: SAST – Bandit
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, ingestion]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Bandit
+        run: pip install bandit[toml]
+
+      - name: Run Bandit
+        run: |
+          bandit -r ${{ matrix.service }}/ \
+            --exclude "**/tests/**" \
+            -f json -o bandit-${{ matrix.service }}.json \
+            --severity-level medium \
+            || true
+
+      - name: Report
+        if: always()
+        run: |
+          echo "## 🔒 Bandit – ${{ matrix.service }}" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f bandit-${{ matrix.service }}.json ]; then
+            ISSUES=$(python -c "import json; r=json.load(open('bandit-${{ matrix.service }}.json')); print(len(r.get('results',[])))")
+            echo "Found **${ISSUES}** issue(s)" >> "$GITHUB_STEP_SUMMARY"
+            python -c "
+          import json
+          data = json.load(open('bandit-${{ matrix.service }}.json'))
+          for r in data.get('results', []):
+              print(f\"| {r['severity']} | {r['test_id']} | {r['issue_text']} | {r['filename']}:{r['line_number']} |\")
+          " >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+
+  # -----------------------------------------------------------------------
+  # 2. Dependency audit – pip-audit (known CVEs in Python packages)
+  # -----------------------------------------------------------------------
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, ingestion]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit ${{ matrix.service }} dependencies
+        run: |
+          pip-audit \
+            -r ${{ matrix.service }}/requirements.txt \
+            --desc \
+            --output pip-audit-${{ matrix.service }}.json \
+            --format json \
+            || true
+
+      - name: Report
+        if: always()
+        run: |
+          echo "## 📦 pip-audit – ${{ matrix.service }}" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f pip-audit-${{ matrix.service }}.json ]; then
+            python -c "
+          import json
+          data = json.load(open('pip-audit-${{ matrix.service }}.json'))
+          vulns = [d for d in data.get('dependencies', []) if d.get('vulns')]
+          print(f'Vulnerable packages: **{len(vulns)}**')
+          for d in vulns:
+              for v in d['vulns']:
+                  print(f\"| {d['name']} | {d['version']} | {v['id']} | {v.get('fix_versions',['n/a'])} |\")
+          " >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+
+  # -----------------------------------------------------------------------
+  # 3. Container image scan – Trivy
+  # -----------------------------------------------------------------------
+  container-scan:
+    name: Container Scan – Trivy
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, ingestion]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image for scanning
+        run: |
+          docker build \
+            -t scan-${{ matrix.service }}:local \
+            ./${{ matrix.service }}
+
+      - name: Run Trivy (SARIF)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "${{ github.workspace }}:/workspace" \
+            aquasec/trivy:latest image \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --format sarif \
+            --output /workspace/trivy-${{ matrix.service }}.sarif \
+            "scan-${{ matrix.service }}:local" || true
+
+      - name: Run Trivy (table summary)
+        if: always()
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --format table \
+            --exit-code 0 \
+            "scan-${{ matrix.service }}:local" || true
+
+      - name: Upload SARIF
+        if: always() && hashFiles(format('trivy-{0}.sarif', matrix.service)) != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: "trivy-${{ matrix.service }}.sarif"
+          category: "trivy-${{ matrix.service }}"
+
+  # -----------------------------------------------------------------------
+  # 4. Secret scanning – Gitleaks
+  # -----------------------------------------------------------------------
+  secret-scan:
+    name: Secret Scan – Gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # -----------------------------------------------------------------------
+  # 5. Kubernetes manifest scan – Trivy config
+  # -----------------------------------------------------------------------
+  k8s-scan:
+    name: K8s Manifest Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Template Helm chart
+        run: |
+          helm dependency update helm/
+          helm template test helm/ \
+            --set api.image.repository=ghcr.io/test/api \
+            --set api.image.tag=test \
+            --set ingestion.image.repository=ghcr.io/test/ingestion \
+            --set ingestion.image.tag=test \
+            --set frontend.image.repository=ghcr.io/test/frontend \
+            --set frontend.image.tag=test \
+            > /tmp/rendered-manifests.yaml
+
+      - name: Scan K8s manifests with Trivy
+        run: |
+          docker run --rm \
+            -v /tmp:/tmp \
+            aquasec/trivy:latest config \
+            --severity CRITICAL,HIGH \
+            --format table \
+            --exit-code 0 \
+            /tmp/rendered-manifests.yaml
+
+  # -----------------------------------------------------------------------
+  # Summary
+  # -----------------------------------------------------------------------
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [sast, dependency-audit, container-scan, secret-scan, k8s-scan]
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          echo "## 🛡️ Security Pipeline Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check              | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------------------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| SAST (Bandit)      | ${{ needs.sast.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dependency Audit   | ${{ needs.dependency-audit.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Container Scan     | ${{ needs.container-scan.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Secret Scan        | ${{ needs.secret-scan.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| K8s Manifest Scan  | ${{ needs.k8s-scan.result }} |" >> "$GITHUB_STEP_SUMMARY"

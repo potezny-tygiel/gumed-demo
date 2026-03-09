@@ -1,0 +1,37 @@
+{{- /*
+Ingestion Job: needs egress to Kaggle (HTTPS) and PostgreSQL.
+No ingress needed.
+*/ -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingestion
+  labels:
+    app.kubernetes.io/part-of: medical-pipeline
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ingestion
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    # → PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - port: 5432
+          protocol: TCP
+    # → Kaggle API (HTTPS)
+    - ports:
+        - port: 443
+          protocol: TCP
+    # → DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ingestion
+description: Kaggle dataset ingestion Job for the Medical Data Pipeline
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

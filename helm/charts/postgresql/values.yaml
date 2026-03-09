@@ -1,0 +1,8 @@
+auth:
+  username: pipeline
+  password: changeme
+  database: medical_data
+
+storage:
+  size: 5Gi
+  storageClass: local-path

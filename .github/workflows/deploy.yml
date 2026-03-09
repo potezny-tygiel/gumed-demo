@@ -1,0 +1,134 @@
+name: Deploy to K3s
+
+on:
+  workflow_run:
+    workflows: ["Build & Push Images"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (defaults to latest commit SHA)"
+        type: string
+        required: false
+
+jobs:
+  deploy:
+    name: Deploy to K3s VPS
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -euo pipefail
+
+            RELEASE_NAME="medical-pipeline"
+            NAMESPACE="medical-pipeline"
+            REPO_DIR="/opt/medical-pipeline"
+            REGISTRY="ghcr.io/${{ github.repository }}"
+            IMAGE_TAG="${{ github.event.inputs.image_tag || github.sha }}"
+
+            echo "============================================"
+            echo "  Deploying medical-pipeline"
+            echo "  Image tag: ${IMAGE_TAG}"
+            echo "  Namespace: ${NAMESPACE}"
+            echo "============================================"
+
+            # ----------------------------------------------------------
+            # 1. Update repo on VPS
+            # ----------------------------------------------------------
+            cd "${REPO_DIR}"
+            git fetch origin main
+            git reset --hard origin/main
+
+            # ----------------------------------------------------------
+            # 2. Ensure namespace (idempotent)
+            # ----------------------------------------------------------
+            kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+
+            # ----------------------------------------------------------
+            # 3. Ensure GHCR pull secret (idempotent)
+            # ----------------------------------------------------------
+            kubectl create secret docker-registry ghcr-pull-secret \
+              --namespace="${NAMESPACE}" \
+              --docker-server=ghcr.io \
+              --docker-username=${{ github.actor }} \
+              --docker-password=${{ secrets.GHCR_PAT }} \
+              --dry-run=client -o yaml | kubectl apply -f -
+
+            # ----------------------------------------------------------
+            # 4. Helm diff (dry-run to show what will change)
+            # ----------------------------------------------------------
+            echo ""
+            echo ">>> Helm diff (dry-run) ..."
+            helm upgrade --install "${RELEASE_NAME}" ./helm \
+              --namespace "${NAMESPACE}" \
+              --set global.imagePullSecrets[0].name=ghcr-pull-secret \
+              --set api.image.repository="${REGISTRY}/api" \
+              --set api.image.tag="${IMAGE_TAG}" \
+              --set ingestion.image.repository="${REGISTRY}/ingestion" \
+              --set ingestion.image.tag="${IMAGE_TAG}" \
+              --set frontend.image.repository="${REGISTRY}/frontend" \
+              --set frontend.image.tag="${IMAGE_TAG}" \
+              --set postgresql.auth.username="${{ secrets.POSTGRES_USER }}" \
+              --set postgresql.auth.password="${{ secrets.POSTGRES_PASSWORD }}" \
+              --set ingestion.kaggle.username="${{ secrets.KAGGLE_USERNAME }}" \
+              --set ingestion.kaggle.key="${{ secrets.KAGGLE_KEY }}" \
+              --set grafana.adminPassword="${{ secrets.GF_ADMIN_PASSWORD }}" \
+              --dry-run 2>&1 | tail -5 || true
+
+            # ----------------------------------------------------------
+            # 5. Helm upgrade/install (idempotent)
+            # ----------------------------------------------------------
+            echo ""
+            echo ">>> Applying Helm release ..."
+            helm upgrade --install "${RELEASE_NAME}" ./helm \
+              --namespace "${NAMESPACE}" \
+              --set global.imagePullSecrets[0].name=ghcr-pull-secret \
+              --set api.image.repository="${REGISTRY}/api" \
+              --set api.image.tag="${IMAGE_TAG}" \
+              --set ingestion.image.repository="${REGISTRY}/ingestion" \
+              --set ingestion.image.tag="${IMAGE_TAG}" \
+              --set frontend.image.repository="${REGISTRY}/frontend" \
+              --set frontend.image.tag="${IMAGE_TAG}" \
+              --set postgresql.auth.username="${{ secrets.POSTGRES_USER }}" \
+              --set postgresql.auth.password="${{ secrets.POSTGRES_PASSWORD }}" \
+              --set ingestion.kaggle.username="${{ secrets.KAGGLE_USERNAME }}" \
+              --set ingestion.kaggle.key="${{ secrets.KAGGLE_KEY }}" \
+              --set grafana.adminPassword="${{ secrets.GF_ADMIN_PASSWORD }}" \
+              --wait --timeout 5m \
+              --atomic
+
+            echo ""
+            echo "✅ Helm release applied successfully"
+
+            # ----------------------------------------------------------
+            # 6. Post-deploy health check
+            # ----------------------------------------------------------
+            echo ""
+            echo ">>> Running post-deploy health check ..."
+            chmod +x "${REPO_DIR}/infra/healthcheck.sh"
+            "${REPO_DIR}/infra/healthcheck.sh"
+
+  # -----------------------------------------------------------------------
+  # Notify on failure
+  # -----------------------------------------------------------------------
+  notify-skip:
+    name: Report Skipped Deploy
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    steps:
+      - name: Build failed — deploy skipped
+        run: |
+          echo "::warning::Build workflow failed — deploy was skipped"
+          echo "## ⚠️ Deploy Skipped" >> "$GITHUB_STEP_SUMMARY"
+          echo "The upstream **Build & Push Images** workflow failed." >> "$GITHUB_STEP_SUMMARY"
+          echo "Fix the build before deploying." >> "$GITHUB_STEP_SUMMARY"
+
