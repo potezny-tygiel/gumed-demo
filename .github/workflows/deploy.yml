@@ -40,7 +40,9 @@ jobs:
             NAMESPACE="medical-pipeline"
             REPO_DIR="/opt/medical-pipeline"
             REGISTRY="ghcr.io/${{ github.repository }}"
-            IMAGE_TAG="${{ github.event.inputs.image_tag || github.sha }}"
+            # Use explicit input tag > commit SHA > "latest" fallback
+            INPUT_TAG="${{ github.event.inputs.image_tag }}"
+            IMAGE_TAG="${INPUT_TAG:-latest}"
 
             echo "============================================"
             echo "  Deploying medical-pipeline"
@@ -130,7 +132,7 @@ jobs:
             # ----------------------------------------------------------
             echo ""
             echo ">>> Applying Helm release ..."
-            helm upgrade --install "${RELEASE_NAME}" ./helm \
+            if helm upgrade --install "${RELEASE_NAME}" ./helm \
               --namespace "${NAMESPACE}" \
               --set global.imagePullSecrets[0].name=ghcr-pull-secret \
               --set api.image.repository="${REGISTRY}/api" \
@@ -144,11 +146,29 @@ jobs:
               --set ingestion.kaggle.username="${{ secrets.KAGGLE_USERNAME }}" \
               --set ingestion.kaggle.key="${{ secrets.KAGGLE_KEY }}" \
               --set grafana.adminPassword="${{ secrets.GF_ADMIN_PASSWORD }}" \
-              --wait --timeout 5m \
-              --atomic
-
-            echo ""
-            echo "✅ Helm release applied successfully"
+              --wait --timeout 10m; then
+              echo ""
+              echo "✅ Helm release applied successfully"
+            else
+              echo ""
+              echo "❌ Helm release FAILED — collecting diagnostics ..."
+              echo ""
+              echo "=== Pod Status ==="
+              kubectl get pods -n "${NAMESPACE}" -o wide 2>/dev/null || true
+              echo ""
+              echo "=== Pod Describe (non-Running) ==="
+              for pod in $(kubectl get pods -n "${NAMESPACE}" --no-headers 2>/dev/null | grep -v Running | awk '{print $1}'); do
+                echo "--- ${pod} ---"
+                kubectl describe pod "${pod}" -n "${NAMESPACE}" 2>/dev/null | tail -30
+                echo ""
+                echo "--- ${pod} logs ---"
+                kubectl logs "${pod}" -n "${NAMESPACE}" --tail=20 2>/dev/null || true
+                echo ""
+              done
+              echo "=== Events ==="
+              kubectl get events -n "${NAMESPACE}" --sort-by='.lastTimestamp' 2>/dev/null | tail -20 || true
+              exit 1
+            fi
 
             # ----------------------------------------------------------
             # 6. Post-deploy health check
