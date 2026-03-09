@@ -42,8 +42,12 @@ jobs:
             echo "============================================"
 
             # ----------------------------------------------------------
-            # 1. Update repo on VPS
+            # 1. Clone or update repo on VPS
             # ----------------------------------------------------------
+            if [ ! -d "${REPO_DIR}" ]; then
+              echo ">>> First deploy — cloning repository ..."
+              git clone https://github.com/${{ github.repository }}.git "${REPO_DIR}"
+            fi
             cd "${REPO_DIR}"
             git fetch origin main
             git reset --hard origin/main
@@ -131,4 +135,3 @@ jobs:
           echo "## ⚠️ Deploy Skipped" >> "$GITHUB_STEP_SUMMARY"
           echo "The upstream **Build & Push Images** workflow failed." >> "$GITHUB_STEP_SUMMARY"
           echo "Fix the build before deploying." >> "$GITHUB_STEP_SUMMARY"
-
