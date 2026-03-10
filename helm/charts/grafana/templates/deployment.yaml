@@ -54,6 +54,16 @@ spec:
               value: {{ .Values.adminUser | quote }}
             - name: GF_SECURITY_ADMIN_PASSWORD
               value: {{ .Values.adminPassword | quote }}
+            - name: GF_DS_POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "grafana.postgresHost" . }}
+                  key: POSTGRES_USER
+            - name: GF_DS_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "grafana.postgresHost" . }}
+                  key: POSTGRES_PASSWORD
           volumeMounts:
             - name: data
               mountPath: /var/lib/grafana
