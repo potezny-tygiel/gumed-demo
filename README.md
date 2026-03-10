@@ -1,14 +1,6 @@
 # 🏥 Medical Data Pipeline
 
-> A production-ready| If you want to see… | Look at… |
-|---|---|
-| The REST API in action | `api/app/routes.py` — 4 endpoints, clean and readable |
-| How data gets ingested | `ingestion/ingest.py` — downloads from Kaggle, cleans columns, loads into PostgreSQL |
-| The frontend + 3D scene | `frontend/` — glassmorphism UI over a PS1-style WebGPU medical lab |
-| The CI/CD pipelines | `.github/workflows/` — 6 YAML files, each one a pipeline stage |
-| The security setup | `.github/workflows/security.yml` — 5 scanners in one workflow |
-| Infrastructure as Code | `helm/` — the entire Kubernetes deployment described as config files (5 subcharts) |
-| Server hardening | `infra/bootstrap.sh` — firewall, intrusion detection, kernel hardening, auto-updates |f concept: automated data ingestio| Component | Technology |
+
 |---|---|
 | **Language** | Python 3.12 |
 | **API** | FastAPI + Uvicorn |
