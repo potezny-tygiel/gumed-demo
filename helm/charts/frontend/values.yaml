@@ -19,10 +19,9 @@ ingress:
 apiUpstream: ""
 
 # HTTP Basic Auth (nginx ingress)
+# The secret is created externally via kubectl in deploy.yml
 basicAuth:
   enabled: false
-  # htpasswd-format string, e.g. "admin:$2y$05$..."
-  htpasswd: ""
 
 resources:
   requests:
