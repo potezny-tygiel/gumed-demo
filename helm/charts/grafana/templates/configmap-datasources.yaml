@@ -7,10 +7,14 @@ metadata:
 data:
   datasource.yml: |
     apiVersion: 1
+    deleteDatasources:
+      - name: PostgreSQL
+        orgId: 1
     datasources:
       - name: PostgreSQL
         type: postgres
         access: proxy
+        orgId: 1
         url: {{ include "grafana.postgresHost" . }}:5432
         database: {{ .Values.postgresql.database }}
         user: {{ .Values.postgresql.username }}
@@ -21,3 +25,4 @@ data:
           postgresVersion: 1600
         isDefault: true
         editable: true
+        version: 1

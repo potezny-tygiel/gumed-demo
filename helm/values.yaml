@@ -82,5 +82,3 @@ frontend:
     enabled: true
     host: hevelius.space
     tls: true
-  basicAuth:
-    enabled: true
