@@ -17,9 +17,9 @@ data:
         orgId: 1
         url: {{ include "grafana.postgresHost" . }}:5432
         database: {{ .Values.postgresql.database }}
-        user: {{ .Values.postgresql.username }}
+        user: $__env{GF_DS_POSTGRES_USER}
         secureJsonData:
-          password: {{ .Values.postgresql.password }}
+          password: $__env{GF_DS_POSTGRES_PASSWORD}
         jsonData:
           sslmode: disable
           postgresVersion: 1600
