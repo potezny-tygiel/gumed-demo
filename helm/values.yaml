@@ -84,5 +84,3 @@ frontend:
     tls: true
   basicAuth:
     enabled: true
-    # Overridden at deploy time via --set frontend.basicAuth.htpasswd
-    htpasswd: ""
