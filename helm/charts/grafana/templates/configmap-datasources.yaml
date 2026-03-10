@@ -12,10 +12,10 @@ data:
         type: postgres
         access: proxy
         url: {{ include "grafana.postgresHost" . }}:5432
-        database: medical_data
-        user: pipeline
+        database: {{ .Values.postgresql.database }}
+        user: {{ .Values.postgresql.username }}
         secureJsonData:
-          password: changeme
+          password: {{ .Values.postgresql.password }}
         jsonData:
           sslmode: disable
           postgresVersion: 1600
