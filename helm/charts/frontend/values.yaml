@@ -18,11 +18,6 @@ ingress:
 # In-cluster service name for the API reverse proxy
 apiUpstream: ""
 
-# HTTP Basic Auth (nginx ingress)
-# The secret is created externally via kubectl in deploy.yml
-basicAuth:
-  enabled: false
-
 resources:
   requests:
     cpu: 50m
