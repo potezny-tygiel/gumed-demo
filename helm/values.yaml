@@ -15,7 +15,7 @@ certManager:
 # -- PostgreSQL subchart values
 postgresql:
   auth:
-    username: pipeline
+    username: medical
     password: changeme
     database: medical_data
   storage:
@@ -66,7 +66,7 @@ grafana:
   # --set grafana.postgresql.username / --set grafana.postgresql.password.
   postgresql:
     database: medical_data
-    username: pipeline
+    username: medical
     password: changeme
 
 # -- Frontend subchart values
