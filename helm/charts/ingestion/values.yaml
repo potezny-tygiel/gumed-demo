@@ -1,7 +1,7 @@
 image:
   repository: ""
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 kaggle:
   username: ""
@@ -17,7 +17,7 @@ resources:
     memory: 512Mi
 
 # backoffLimit for the Job
-backoffLimit: 3
+backoffLimit: 6
 
 # TTL for finished jobs (seconds). Default: 1 hour
 ttlSecondsAfterFinished: 3600

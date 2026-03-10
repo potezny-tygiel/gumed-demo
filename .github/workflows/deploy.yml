@@ -29,11 +29,20 @@ jobs:
           script: |
             set -euo pipefail
 
+            # K3s kubeconfig — try user copy first, fall back to system
+            if [[ -r "${HOME}/.kube/config" ]]; then
+              export KUBECONFIG="${HOME}/.kube/config"
+            else
+              export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+            fi
+
             RELEASE_NAME="medical-pipeline"
             NAMESPACE="medical-pipeline"
             REPO_DIR="/opt/medical-pipeline"
             REGISTRY="ghcr.io/${{ github.repository }}"
-            IMAGE_TAG="${{ github.event.inputs.image_tag || github.sha }}"
+            # Use explicit input tag > commit SHA > "latest" fallback
+            INPUT_TAG="${{ github.event.inputs.image_tag }}"
+            IMAGE_TAG="${INPUT_TAG:-latest}"
 
             echo "============================================"
             echo "  Deploying medical-pipeline"
@@ -42,8 +51,12 @@ jobs:
             echo "============================================"
 
             # ----------------------------------------------------------
-            # 1. Update repo on VPS
+            # 1. Clone or update repo on VPS
             # ----------------------------------------------------------
+            if [ ! -d "${REPO_DIR}" ]; then
+              echo ">>> First deploy — cloning repository ..."
+              git clone https://github.com/${{ github.repository }}.git "${REPO_DIR}"
+            fi
             cd "${REPO_DIR}"
             git fetch origin main
             git reset --hard origin/main
@@ -52,6 +65,36 @@ jobs:
             # 2. Ensure namespace (idempotent)
             # ----------------------------------------------------------
             kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+
+            # ----------------------------------------------------------
+            # 2b. Ensure Traefik is removed (K3s default conflicts with nginx)
+            # ----------------------------------------------------------
+            echo ">>> Removing Traefik if present ..."
+            kubectl delete helmchart traefik traefik-crd -n kube-system 2>/dev/null || true
+            kubectl delete deployment traefik -n kube-system 2>/dev/null || true
+            kubectl delete svc traefik -n kube-system 2>/dev/null || true
+            # Prevent K3s from re-creating Traefik on restart
+            sudo mkdir -p /var/lib/rancher/k3s/server/manifests
+            echo '---' | sudo tee /var/lib/rancher/k3s/server/manifests/traefik.yaml.skip > /dev/null || true
+
+            # ----------------------------------------------------------
+            # 2c. Ensure NGINX Ingress Controller is running
+            # ----------------------------------------------------------
+            echo ">>> Checking NGINX Ingress Controller ..."
+            helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx --force-update
+            helm repo update
+            helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+              --namespace ingress-nginx --create-namespace \
+              --set controller.hostPort.enabled=false \
+              --set controller.service.type=LoadBalancer \
+              --wait --timeout=120s
+
+            # Wait for the admission webhook to be ready
+            echo ">>> Waiting for ingress-nginx admission webhook ..."
+            kubectl wait --namespace ingress-nginx \
+              --for=condition=Ready pod \
+              --selector=app.kubernetes.io/component=controller \
+              --timeout=120s
 
             # ----------------------------------------------------------
             # 3. Ensure GHCR pull secret (idempotent)
@@ -87,9 +130,15 @@ jobs:
             # ----------------------------------------------------------
             # 5. Helm upgrade/install (idempotent)
             # ----------------------------------------------------------
+            # Clean up stuck/failed release before attempting install
+            RELEASE_STATUS=$(helm status "${RELEASE_NAME}" -n "${NAMESPACE}" -o json 2>/dev/null | grep -o '"status":"[^"]*"' | cut -d'"' -f4 || true)
+            if [[ "${RELEASE_STATUS}" == "failed" || "${RELEASE_STATUS}" == "pending-install" || "${RELEASE_STATUS}" == "pending-upgrade" ]]; then
+              echo ">>> Previous release in '${RELEASE_STATUS}' state — uninstalling before fresh install ..."
+              helm uninstall "${RELEASE_NAME}" -n "${NAMESPACE}" --wait 2>/dev/null || true
+            fi
             echo ""
             echo ">>> Applying Helm release ..."
-            helm upgrade --install "${RELEASE_NAME}" ./helm \
+            if helm upgrade --install "${RELEASE_NAME}" ./helm \
               --namespace "${NAMESPACE}" \
               --set global.imagePullSecrets[0].name=ghcr-pull-secret \
               --set api.image.repository="${REGISTRY}/api" \
@@ -103,11 +152,29 @@ jobs:
               --set ingestion.kaggle.username="${{ secrets.KAGGLE_USERNAME }}" \
               --set ingestion.kaggle.key="${{ secrets.KAGGLE_KEY }}" \
               --set grafana.adminPassword="${{ secrets.GF_ADMIN_PASSWORD }}" \
-              --wait --timeout 5m \
-              --atomic
-
-            echo ""
-            echo "✅ Helm release applied successfully"
+              --wait --timeout 10m; then
+              echo ""
+              echo "✅ Helm release applied successfully"
+            else
+              echo ""
+              echo "❌ Helm release FAILED — collecting diagnostics ..."
+              echo ""
+              echo "=== Pod Status ==="
+              kubectl get pods -n "${NAMESPACE}" -o wide 2>/dev/null || true
+              echo ""
+              echo "=== Pod Describe (non-Running) ==="
+              for pod in $(kubectl get pods -n "${NAMESPACE}" --no-headers 2>/dev/null | grep -v Running | awk '{print $1}'); do
+                echo "--- ${pod} ---"
+                kubectl describe pod "${pod}" -n "${NAMESPACE}" 2>/dev/null | tail -30
+                echo ""
+                echo "--- ${pod} logs ---"
+                kubectl logs "${pod}" -n "${NAMESPACE}" --tail=20 2>/dev/null || true
+                echo ""
+              done
+              echo "=== Events ==="
+              kubectl get events -n "${NAMESPACE}" --sort-by='.lastTimestamp' 2>/dev/null | tail -20 || true
+              exit 1
+            fi
 
             # ----------------------------------------------------------
             # 6. Post-deploy health check
@@ -131,4 +198,3 @@ jobs:
           echo "## ⚠️ Deploy Skipped" >> "$GITHUB_STEP_SUMMARY"
           echo "The upstream **Build & Push Images** workflow failed." >> "$GITHUB_STEP_SUMMARY"
           echo "Fix the build before deploying." >> "$GITHUB_STEP_SUMMARY"
-

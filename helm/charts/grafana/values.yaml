@@ -21,3 +21,9 @@ resources:
   limits:
     cpu: 500m
     memory: 256Mi
+
+# -- PostgreSQL connection for the provisioned datasource
+postgresql:
+  database: medical_data
+  username: medical
+  password: changeme

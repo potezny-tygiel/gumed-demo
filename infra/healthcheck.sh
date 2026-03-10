@@ -24,7 +24,20 @@
 #   1 — one or more checks failed
 # =============================================================================
 
-set -euo pipefail
+set -uo pipefail
+# NOTE: we intentionally omit -e so that individual check failures
+# (e.g. a grep that finds nothing, a kubectl exec that times out)
+# do not abort the entire report.  We track failures via the FAILED
+# counter and return the appropriate exit code at the very end.
+
+# K3s kubeconfig — use if present and KUBECONFIG not already set
+if [[ -z "${KUBECONFIG:-}" ]]; then
+  if [[ -r "${HOME}/.kube/config" ]]; then
+    export KUBECONFIG="${HOME}/.kube/config"
+  elif [[ -r /etc/rancher/k3s/k3s.yaml ]]; then
+    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+  fi
+fi
 
 NAMESPACE="${1:-medical-pipeline}"
 RELEASE_NAME="${2:-medical-pipeline}"
@@ -344,9 +357,9 @@ info "Recent Warning Events"
 WARNINGS=$(kubectl get events -n "${NAMESPACE}" --field-selector type=Warning --sort-by=.lastTimestamp 2>/dev/null | tail -5 || true)
 
 if [[ -n "$WARNINGS" ]] && [[ "$WARNINGS" != *"No resources found"* ]]; then
-  echo "$WARNINGS" | while IFS= read -r line; do
+  while IFS= read -r line; do
     warn "$line"
-  done
+  done <<< "$WARNINGS"
 else
   ok "No recent warning events"
 fi
@@ -359,8 +372,8 @@ info "Helm Release"
 HELM_STATUS=$(helm status "${RELEASE_NAME}" -n "${NAMESPACE}" -o json 2>/dev/null || true)
 
 if [[ -n "$HELM_STATUS" ]]; then
-  RELEASE_STATUS=$(echo "$HELM_STATUS" | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
-  REVISION=$(echo "$HELM_STATUS" | grep -o '"revision":[0-9]*' | head -1 | cut -d: -f2)
+  RELEASE_STATUS=$(echo "$HELM_STATUS" | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+  REVISION=$(echo "$HELM_STATUS" | grep -o '"revision":[0-9]*' | head -1 | cut -d: -f2 || true)
   LAST_DEPLOYED=$(echo "$HELM_STATUS" | grep -o '"last_deployed":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
 
   if [[ "$RELEASE_STATUS" == "deployed" ]]; then
@@ -377,9 +390,9 @@ if [[ -n "$HELM_STATUS" ]]; then
   if [[ -n "$HISTORY" ]]; then
     dim ""
     dim "Recent history:"
-    echo "$HISTORY" | while IFS= read -r line; do
+    while IFS= read -r line; do
       dim "  $line"
-    done
+    done <<< "$HISTORY"
   fi
 else
   warn "No Helm release '${RELEASE_NAME}' found"
@@ -392,15 +405,17 @@ info "Resource Usage"
 
 if kubectl top nodes &> /dev/null; then
   dim "Node resources:"
-  kubectl top nodes 2>/dev/null | while IFS= read -r line; do
+  NODE_TOP=$(kubectl top nodes 2>/dev/null || true)
+  while IFS= read -r line; do
     dim "  $line"
-  done
+  done <<< "$NODE_TOP"
 
   dim ""
   dim "Pod resources in ${NAMESPACE}:"
-  kubectl top pods -n "${NAMESPACE}" 2>/dev/null | while IFS= read -r line; do
+  POD_TOP=$(kubectl top pods -n "${NAMESPACE}" 2>/dev/null || true)
+  while IFS= read -r line; do
     dim "  $line"
-  done
+  done <<< "$POD_TOP"
   ok "Metrics collected"
 else
   dim "metrics-server not available — skipping resource usage"

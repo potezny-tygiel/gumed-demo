@@ -21,6 +21,11 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -euo pipefail
+            if [[ -r "${HOME}/.kube/config" ]]; then
+              export KUBECONFIG="${HOME}/.kube/config"
+            else
+              export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+            fi
 
             REPO_DIR="/opt/medical-pipeline"
 
@@ -31,4 +36,3 @@ jobs:
 
             chmod +x "${REPO_DIR}/infra/healthcheck.sh"
             "${REPO_DIR}/infra/healthcheck.sh"
-

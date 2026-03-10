@@ -7,17 +7,22 @@ metadata:
 data:
   datasource.yml: |
     apiVersion: 1
+    deleteDatasources:
+      - name: PostgreSQL
+        orgId: 1
     datasources:
       - name: PostgreSQL
         type: postgres
         access: proxy
+        orgId: 1
         url: {{ include "grafana.postgresHost" . }}:5432
-        database: medical_data
-        user: pipeline
+        database: {{ .Values.postgresql.database }}
+        user: $__env{GF_DS_POSTGRES_USER}
         secureJsonData:
-          password: changeme
+          password: $__env{GF_DS_POSTGRES_PASSWORD}
         jsonData:
           sslmode: disable
           postgresVersion: 1600
         isDefault: true
         editable: true
+        version: 1

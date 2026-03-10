@@ -5,10 +5,17 @@ global:
   # -- Image pull secrets for private registries
   imagePullSecrets: []
 
+# -- cert-manager ClusterIssuer for Let's Encrypt TLS
+certManager:
+  enabled: true
+  email: ""
+  issuerName: letsencrypt-prod
+  acmeServer: https://acme-v02.api.letsencrypt.org/directory
+
 # -- PostgreSQL subchart values
 postgresql:
   auth:
-    username: pipeline
+    username: medical
     password: changeme
     database: medical_data
   storage:
@@ -54,6 +61,13 @@ grafana:
   storage:
     size: 1Gi
     storageClass: local-path
+  # Grafana's provisioned PostgreSQL datasource uses the same creds as the
+  # postgresql subchart.  These defaults are overridden at deploy time via
+  # --set grafana.postgresql.username / --set grafana.postgresql.password.
+  postgresql:
+    database: medical_data
+    username: medical
+    password: changeme
 
 # -- Frontend subchart values
 frontend:

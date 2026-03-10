@@ -43,6 +43,11 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            if [[ -r "${HOME}/.kube/config" ]]; then
+              export KUBECONFIG="${HOME}/.kube/config"
+            else
+              export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+            fi
             echo "=== Node Status ==="
             kubectl get nodes
             echo ""
@@ -51,4 +56,3 @@ jobs:
             echo ""
             echo "=== Helm Version ==="
             helm version --short
-
