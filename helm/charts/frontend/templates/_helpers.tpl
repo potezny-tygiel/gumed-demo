@@ -31,6 +31,6 @@ API upstream — defaults to <release>-api:<api-port>
 {{- if .Values.apiUpstream -}}
 {{- .Values.apiUpstream }}
 {{- else -}}
-{{- printf "%s-api:8000" .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-api.%s.svc.cluster.local:8000" .Release.Name .Release.Namespace }}
 {{- end -}}
 {{- end }}

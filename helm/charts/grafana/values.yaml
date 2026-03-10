@@ -25,5 +25,5 @@ resources:
 # -- PostgreSQL connection for the provisioned datasource
 postgresql:
   database: medical_data
-  username: pipeline
+  username: medical
   password: changeme
